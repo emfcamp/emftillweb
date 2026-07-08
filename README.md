@@ -36,25 +36,26 @@ currency_symbol = "£"
 site_name = "EMF Bars"
 
 [kiosk]
-token = "<random-token>"             # bearer token the kiosk sends in the Authorization header
-user = "kiosk"                       # quicktill user that kiosk transactions are recorded under
-barcode_secret = "<random-secret>"   # shared with quicktill-spacebar-plugin; HMAC barcode check digits
-cancel_mode = "delete"               # "delete" removes a cancelled order; "void" keeps it on the void report
+token_file = "/path/to/token"        # file containing the bearer token the kiosk sends in the Authorization header
+till_user = 1                        # quicktill User id kiosk transactions are recorded under
+barcode_secret = "<random-secret>"   # shared with quicktill-kiosk-plugin; HMAC barcode check digits
+location = "SpaceBAR"                # the only stock location kiosk orders can be placed against
+source = "kiosk"                     # optional; tag recorded on kiosk-created translines
+expiry_source = "kiosk-expiry"       # optional; tag recorded on the expiry sweep's log entries
 ```
 
 The `[kiosk]` section configures the kiosk order API:
 
-- `token` — the shared bearer token the kiosk sends in the
-  `Authorization: Bearer <token>` header. Use a long random string in production.
-- `user` — the quicktill user under whose name kiosk transactions are recorded.
-- `barcode_secret` — shared with the quicktill-spacebar-plugin, used to generate
+- `token_file` — path to a file containing the shared bearer token the kiosk
+  sends in the `Authorization: Bearer <token>` header. Use a long random
+  string in production.
+- `till_user` — the quicktill User id under whose name kiosk transactions are
+  recorded.
+- `barcode_secret` — shared with `quicktill-kiosk-plugin`, used to generate
   and verify the HMAC check digits on order barcodes.
-- `cancel_mode` — how a cancellation is recorded: `"delete"` (default) removes the
-  transaction (the audit log is the trail); `"void"` keeps it with voiding lines
-  on the till's void report.
-
-The order `location` is supplied per request (it must match the location assigned
-to stocklines in the database); it is no longer configured here.
+- `location` — the single stock location kiosk orders can be placed against.
+  Deployment is single-location: there is no per-request `location` param on
+  any kiosk order endpoint (unlike the general stocklines endpoint below).
 
 
 Development
@@ -98,7 +99,7 @@ Kiosk order API
 
 The kiosk API lets a self-service kiosk place orders against the live till
 database without needing direct database access. It is used by
-[spacebar-kiosk](https://github.com/PolybiusBiotech/spacebar-kiosk) and
+[spacebar-kiosk](https://github.com/PolybiusBiotech/spacebar-kiosk), and
 monitored by [spacebar-oms](https://github.com/PolybiusBiotech/spacebar-oms).
 Orders recalled at the till are handled by the
 [quicktill-spacebar-plugin](https://github.com/PolybiusBiotech/quicktill-spacebar-plugin).
@@ -106,12 +107,16 @@ Orders recalled at the till are handled by the
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `GET /api/stocklines.json?location=<name>` | None | Product list and live stock levels |
-| `GET /api/kiosk/orders?location=<name>` | Bearer token | List live kiosk orders (OMS poll) |
-| `POST /api/kiosk/orders` | Bearer token | Place a new kiosk order — returns `{ order_ref, barcode }` |
-| `GET /api/kiosk/orders/<ref>` | Bearer token | Retrieve a single order |
-| `DELETE /api/kiosk/orders/<ref>` | Bearer token + valid HMAC barcode | Cancel an unpaid order. Barcode is supplied in the `Order-Barcode` header and must match `<ref>`. Verifies HMAC before deleting. 403 bad barcode, 404 not found, 409 paid/active. |
+| `GET /api/kiosk/orders/` | Bearer token | List live kiosk orders (OMS poll) — every unpaid order plus every paid-but-not-yet-collected order |
+| `POST /api/kiosk/orders/` | Bearer token | Place a new kiosk order. Body: `{ "items": [{ "stockline_id": 1, "qty": 1 }, ...] }`. Returns the order dict (see below) |
+| `GET /api/kiosk/orders/<transid>/` | Bearer token | Retrieve a single order |
+| `DELETE /api/kiosk/orders/<transid>/` | Bearer token | Cancel an unpaid order — no barcode check. 409 if already paid/closed or currently loaded at a till |
+| `POST /api/kiosk/orders/<transid>/collect/` | Bearer token | Mark an order collected |
+| `POST /api/kiosk/orders/<transid>/id-reject/` | Bearer token | Mark an order rejected (failed the kiosk's ID/age check) |
 
-Order refs are the **quicktill Transaction ID** — no separate counter. Barcodes use HMAC-SHA1 check digits (`KIOSK:<trans_id><3-digit-decimal-check>`) to prevent forgery; both this server and `quicktill-spacebar-plugin` must share the same `kiosk.barcode_secret`.
+Order dict shape: `{ barcode, transaction_id, created_at, expires_at, soft_only, total, lines, paid, collected, cancelled, id_rejected }`.
+
+`transaction_id` is the **quicktill Transaction ID** — no separate order-ref counter. `barcode` is a 10-digit code with no prefix: the first 5 digits are `transaction_id` run through a fixed permutation (so small transaction IDs don't print as a barcode with a run of leading zeros), and the last 5 are the last 5 decimal digits of HMAC-SHA1(`barcode_secret`, `transaction_id`). A valid barcode can only be issued by this server; this server and `quicktill-kiosk-plugin` must share the same `kiosk.barcode_secret`. (The badge still sends an `Order-Barcode` header on its cancel request; it isn't read — cancellation is authenticated by bearer token only.)
 
 Unpaid orders expire 15 minutes after creation. A scheduled `expire_kiosk_orders` management command (run e.g. every minute via cron or a systemd timer) sweeps and deletes them; placing an order no longer triggers expiry as a side effect.
 

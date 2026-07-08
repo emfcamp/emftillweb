@@ -41,16 +41,29 @@ pending_meta_key = "emf:kiosk-pending"
 default_timeout = datetime.timedelta(minutes=15)
 
 
-def _checkdigits(code):
+# Barcode format: 10 decimal digits — PPPPPCCCCC
+#   PPPPP = permuted transaction ID (LCG: avoids leading zeros for small IDs)
+#   CCCCC = last 5 decimal digits of HMAC-SHA1(secret, trans_id)
+#
+# Constants must match quicktill-kiosk-plugin's decode side (see recall.py).
+_PERM_A = 73141
+_PERM_B = 49873
+_PERM_M = 100000
+
+
+def _permute(trans_id):
+    return (_PERM_A * trans_id + _PERM_B) % _PERM_M
+
+
+def _checkdigits(trans_id):
     secret = settings.EMF_KIOSK_BARCODE_SECRET.encode()
-    msg = code.encode()
+    msg = str(trans_id).encode()
     h = hmac.new(secret, msg, hashlib.sha1)
-    return str(int(h.hexdigest(), 16))[-5:]
+    return str(int(h.hexdigest(), 16) % _PERM_M).zfill(5)
 
 
 def _order_barcode(trans_id):
-    c = f"{trans_id:05d}"
-    return f"{c}{_checkdigits(c)}"
+    return f"{_permute(trans_id):05d}{_checkdigits(trans_id)}"
 
 
 class KioskOrderError(Exception):
