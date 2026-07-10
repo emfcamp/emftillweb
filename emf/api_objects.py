@@ -38,16 +38,20 @@ secret_bar = {
     'maplink': 'https://map.emfcamp.org/#21.97/52.0437675/-2.37703993',
 }
 
-# XXX the secret bar needs adding to this list. Could this be a
-# database table in the django database?
+# Could this be a database table in the django database?
 locations = {
     'Bar': robot_arms,
     'Fridge': robot_arms,
     'Back bar': robot_arms,
     'Counter': robot_arms,
+    'Optics': robot_arms,
     'Optics (main bar)': robot_arms,
-    'Null Sector': cybar,
     'Optics (Null Sector)': cybar,
+    'Null Sector': cybar,
+    'Cybar': cybar,
+    'Fridge (Cybar)': cybar,
+    'Counter (Cybar)': cybar,
+    'Optics (Cybar)': cybar,
     'SpaceBAR': secret_bar,
 }
 
