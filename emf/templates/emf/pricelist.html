@@ -105,12 +105,19 @@
               updateText(elems[1], abv_to_string(message.abv));
               updateText(elems[2], `£${message.price}/${message.sale_unit_name}`);
               const locations = elems[3].cloneNode();
-              for (const stockline of message.stocklines) {
-                  const span = document.createElement('span');
-                  span.classList.add('location');
-                  span.classList.add(stockline.location_display.slug);
-                  span.innerText = stockline.location_display.name;
-                  locations.appendChild(span);
+              if (message.stocklines.length) {
+                for (const stockline of message.stocklines) {
+                    const span = document.createElement('span');
+                    span.classList.add('location');
+                    span.classList.add(stockline.location_display.slug);
+                    span.innerText = stockline.location_display.name;
+                    locations.appendChild(span);
+                }
+              } else {
+                const span = document.createElement('span');
+                span.classList.add('location');
+                span.innerText = 'Not currently on sale';
+                locations.appendChild(span);
               }
               updateNode(elems[3], locations);
 
