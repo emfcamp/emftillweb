@@ -46,6 +46,7 @@ locations = {
     'Counter': robot_arms,
     'Optics': robot_arms,
     'Optics (main bar)': robot_arms,
+    'Freezer': robot_arms,
     'Optics (Null Sector)': cybar,
     'Null Sector': cybar,
     'Cybar': cybar,
