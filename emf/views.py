@@ -343,7 +343,7 @@ def jontyfacts(request):
         volunteers = s.query(TillUser).count()
 
         card_payments = s.query(Payment)\
-            .filter(Payment.paytype_id == 'CARD')\
+            .filter(Payment.paytype_id == 'SQUARE')\
             .count()
 
         cash_payments = s.query(Payment)\
@@ -360,7 +360,7 @@ def jontyfacts(request):
         return render(request, "emf/jontyfacts.html",
                       {"pints_sold": pints_sold,
                        "total_pints": total_pints,
-                       "volunteers": volunteers - 1,  # remove 1 for "shop"
+                       "volunteers": volunteers - 1,  # remove 1 for "spacebar kiosk"
                        "card_payments": card_payments,
                        "cash_payments": cash_payments,
                        "club_mate": club_mate,
